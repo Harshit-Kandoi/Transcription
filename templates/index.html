@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcriber</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: "Arial", sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%);
+            background-attachment: fixed;  /* Ensures full-screen effect */
+            color: white;
+            margin: 0;
+            height: 100vh;
+        }
+        .container {
+            max-width: 650px;
+            margin: auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            color: black;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        button {
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 14px 22px;
+            cursor: pointer;
+            border-radius: 10px;
+            font-size: 17px;
+            transition: 0.3s ease;
+        }
+        button:hover {
+            background-color: #ff4757;
+        }
+        .progress-container {
+            width: 100%;
+            background: #ddd;
+            border-radius: 6px;
+            margin: 20px 0;
+            display: none;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 14px;
+            background: #28a745;
+            border-radius: 6px;
+            transition: width 0.4s ease-in-out;
+        }
+        .transcription {
+            margin-top: 20px;
+            padding: 18px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            font-size: 16px; /* Increased size */
+            white-space: pre-wrap;
+            color: black;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .status {
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 12px;
+            font-size: 18px;
+        }
+        /* Centered Download Button */
+        #downloadBtn {
+            display: none; /* Hidden initially */
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: 0.3s ease;
+            
+            /* Centering the button */
+            display: block;
+            margin: 15px auto; /* Auto centers the block element */
+        }
+        #downloadBtn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload an Audio/Video File for Transcription</h1>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" name="file" required>
+            <button type="submit">Upload & Transcribe</button>
+        </form>
+
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <h2>Transcription:</h2>
+        <p id="statusMessage" class="status">Waiting for upload...</p>
+        <div class="transcription" id="transcriptionOutput"></div>
+
+        <!-- Download Button (Hidden Initially) -->
+        <button id="downloadBtn" onclick="downloadTranscription()">Download Transcription</button>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            let fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                alert("Please select a file first!");
+                return;
+            }
+
+            let formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            let progressContainer = document.querySelector(".progress-container");
+            let progressBar = document.getElementById("progressBar");
+            let statusMessage = document.getElementById("statusMessage");
+            let transcriptionOutput = document.getElementById("transcriptionOutput");
+            let downloadBtn = document.getElementById("downloadBtn");
+
+            progressContainer.style.display = "block";  // Show progress bar
+            progressBar.style.width = "0%";
+            statusMessage.innerText = "Processing...";
+            statusMessage.style.color = "#ff6b6b"; // Change text color to red while processing
+
+            let progress = 0;
+            let progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += 10;
+                    progressBar.style.width = progress + "%";
+                }
+            }, 1000); 
+
+            fetch('/api/transcribe', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(progressInterval);
+                progressBar.style.width = "100%";
+                setTimeout(() => {
+                    progressContainer.style.display = "none"; // Hide progress bar
+                }, 1000);
+
+                transcriptionOutput.innerText = data.transcription;
+                statusMessage.innerText = "✅ Transcription Completed";
+                statusMessage.style.color = "#28a745"; // Green color after completion
+
+                // Show Download Button
+                downloadBtn.style.display = "block";
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                progressBar.style.width = "0%";
+                progressContainer.style.display = "none";
+                statusMessage.innerText = "❌ Error during transcription";
+                statusMessage.style.color = "#ff4757";
+                console.error("Error:", error);
+            });
+        });
+
+        function downloadTranscription() {
+            let transcriptionText = document.getElementById("transcriptionOutput").innerText;
+            if (!transcriptionText.trim()) {
+                alert("No transcription available to download.");
+                return;
+            }
+
+            let blob = new Blob([transcriptionText], { type: "text/plain" });
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "transcription.txt";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
